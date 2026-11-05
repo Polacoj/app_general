@@ -27,6 +27,10 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # solo para anotaciones; evita importar pandas en el núcleo
+    import pandas as pd
 
 RAIZ = Path(__file__).resolve().parent.parent
 DATOS_DIR = RAIZ / "DATOS"
@@ -151,6 +155,8 @@ class Resultado:
     mensaje: str
     metricas: dict[str, str | int] = field(default_factory=dict)
     salidas: list[Path] = field(default_factory=list)
+    # Tablas para mostrar al final del informe: {título: DataFrame}
+    tablas: dict[str, "pd.DataFrame"] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

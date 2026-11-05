@@ -96,6 +96,7 @@ class VistaHerramienta:
         self.estado = ft.Text("Listo", size=12, color=ft.Colors.GREY_700)
         self.metricas = ft.Row(wrap=True, spacing=12, run_spacing=12)
         self.salidas_texto = ft.Text("", size=12, selectable=True)
+        self.tablas = ft.Column(spacing=18)
         self.btn_abrir = ft.TextButton(
             "Abrir carpeta de salida",
             icon=ft.Icons.FOLDER_OPEN,
@@ -165,6 +166,7 @@ class VistaHerramienta:
                 self.metricas,
                 self.salidas_texto,
                 self.btn_abrir,
+                self.tablas,
             ],
             spacing=14,
             scroll=ft.ScrollMode.AUTO,
@@ -313,6 +315,7 @@ class VistaHerramienta:
         self._ocupado(True)
         self._poner_estado("Procesando…", COLOR_PRINCIPAL)
         self.metricas.controls.clear()
+        self.tablas.controls.clear()
         self.salidas_texto.value = ""
         self.btn_abrir.visible = False
         self.app.page.update()
@@ -340,6 +343,7 @@ class VistaHerramienta:
 
     def _mostrar_resultado(self, res: Resultado) -> None:
         self.metricas.controls = [self._tarjeta(k, v) for k, v in res.metricas.items()]
+        self.tablas.controls = [self._tabla(t, df) for t, df in res.tablas.items()]
         if res.salidas:
             self.salidas_texto.value = "Archivos generados:\n" + "\n".join(f"• {p}" for p in res.salidas)
             self.ultima_carpeta = res.salidas[0].parent
@@ -359,6 +363,41 @@ class VistaHerramienta:
                 ],
                 spacing=2,
             ),
+        )
+
+    @staticmethod
+    def _tabla(titulo: str, df: pd.DataFrame) -> ft.Control:
+        """Dibuja un DataFrame como tabla; la fila 'Total…' va en negrita."""
+        columnas = [
+            ft.DataColumn(
+                ft.Text(str(c), weight=ft.FontWeight.BOLD),
+                numeric=pd.api.types.is_numeric_dtype(df[c]),
+            )
+            for c in df.columns
+        ]
+        filas = []
+        for fila in df.itertuples(index=False):
+            es_total = str(fila[0]).lower().startswith("total")
+            negrita = ft.FontWeight.BOLD if es_total else None
+            filas.append(
+                ft.DataRow(cells=[ft.DataCell(ft.Text(str(v), weight=negrita)) for v in fila])
+            )
+        return ft.Column(
+            [
+                ft.Text(titulo, weight=ft.FontWeight.BOLD),
+                ft.Row(
+                    [
+                        ft.DataTable(
+                            columns=columnas,
+                            rows=filas,
+                            heading_row_color=ft.Colors.INDIGO_50,
+                            column_spacing=40,
+                        )
+                    ],
+                    scroll=ft.ScrollMode.AUTO,
+                ),
+            ],
+            spacing=8,
         )
 
     def _abrir_salida(self, e) -> None:
