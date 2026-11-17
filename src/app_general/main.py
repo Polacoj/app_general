@@ -30,9 +30,9 @@ import time
 import traceback
 from pathlib import Path
 
-RAIZ = Path(__file__).resolve().parent.parent
-if str(RAIZ) not in sys.path:  # permite `python app_general/main.py` y `-m app_general.main`
-    sys.path.insert(0, str(RAIZ))
+SRC_DIR = Path(__file__).resolve().parent.parent
+if str(SRC_DIR) not in sys.path:  # permite ejecutar el módulo desde el árbol fuente
+    sys.path.insert(0, str(SRC_DIR))
 
 import flet as ft  # noqa: E402
 import pandas as pd  # noqa: E402
@@ -258,9 +258,12 @@ class VistaHerramienta:
 
     def _cargar_hojas(self, spec: ArchivoSpec, ruta: Path) -> None:
         selector = self.selectores_hoja[spec.clave]
+        selector.options = []
+        selector.value = None
+        selector.visible = False
         try:
             with pd.ExcelFile(ruta) as libro:
-                hojas = list(libro.sheet_names)
+                hojas = [str(hoja) for hoja in libro.sheet_names]
         except Exception as exc:
             self.log.error(f"❌ No se pudo leer las hojas de {ruta.name}: {exc}")
             return
@@ -370,7 +373,7 @@ class VistaHerramienta:
         """Dibuja un DataFrame como tabla; la fila 'Total…' va en negrita."""
         columnas = [
             ft.DataColumn(
-                ft.Text(str(c), weight=ft.FontWeight.BOLD),
+                label=ft.Text(str(c), weight=ft.FontWeight.BOLD),
                 numeric=pd.api.types.is_numeric_dtype(df[c]),
             )
             for c in df.columns

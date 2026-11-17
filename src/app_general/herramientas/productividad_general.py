@@ -31,9 +31,9 @@ COLUMNAS_A_EXTRAER = [1, 2, 7, 16, "", "", 20, 32, 13, 14]
 #  PASO A: archivo unificado a partir del CMU
 # ─────────────────────────────────────────────────────────────
 def _generar_unificado(ruta: Path, log: Logger) -> tuple[Path, dict[str, int]]:
-    from complementos.colaboradores import ColaboradoresProcessor
-    from complementos.contraventores_detenidos import ContraventoresProcessor
-    from complementos.integrados import IntegradosProcessor
+    from app_general.complementos.colaboradores import ColaboradoresProcessor
+    from app_general.complementos.contraventores_detenidos import ContraventoresProcessor
+    from app_general.complementos.integrados import IntegradosProcessor
 
     log.titulo("📊 PASO 1: CARGA Y LIMPIEZA")
     df = pd.read_excel(ruta, engine="openpyxl")
@@ -133,21 +133,23 @@ def _sin_dialogos_tk(indice_hoja: int, log: Logger):
 
 
 def _agregar_narracion(ruta_narr: Path, hoja: str, ruta_cmu: Path, unificado: Path, log: Logger):
-    from complementos.narracion import NarracionProcessor
+    from app_general.complementos.narracion import NarracionProcessor
 
     proc = NarracionProcessor(log_fn=log, datos_dir=DATOS_DIR)
     mes = proc.extraer_mes_de_nombre(ruta_cmu.name)
     with pd.ExcelFile(ruta_narr, engine="openpyxl") as libro:
         indice = libro.sheet_names.index(hoja)
     with _sin_dialogos_tk(indice, log):
-        return proc.procesar_narracion_file(str(ruta_narr), mes, str(unificado))
+        return proc.procesar_narracion_file(
+            str(ruta_narr), mes, str(unificado), ruta_cmu=str(ruta_cmu)
+        )
 
 
 # ─────────────────────────────────────────────────────────────
 #  PASO C (opcional): presentismo
 # ─────────────────────────────────────────────────────────────
 def _agregar_presentismo(ruta_pres: Path, unificado: Path, log: Logger):
-    from complementos.presentismo import PresentismoProcessor
+    from app_general.complementos.presentismo import PresentismoProcessor
 
     ajustar_dias_presentismo(ruta_pres.name)
     return PresentismoProcessor(log_fn=log).procesar_presentismo_file(str(ruta_pres), str(unificado))

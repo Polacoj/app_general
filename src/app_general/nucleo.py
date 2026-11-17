@@ -32,7 +32,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:  # solo para anotaciones; evita importar pandas en el núcleo
     import pandas as pd
 
-RAIZ = Path(__file__).resolve().parent.parent
+RAIZ = Path(__file__).resolve().parents[2]
+if not (RAIZ / "pyproject.toml").is_file():
+    RAIZ = Path.cwd()
 DATOS_DIR = RAIZ / "DATOS"
 DATOS_DIR.mkdir(exist_ok=True)
 

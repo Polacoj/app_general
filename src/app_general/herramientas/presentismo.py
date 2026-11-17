@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
-
 from app_general.nucleo import (
     DATOS_DIR,
     Accion,
@@ -25,7 +24,7 @@ def ajustar_dias_presentismo(nombre_archivo: str) -> int:
     original lo hacía `ejecutar_procesamiento()`, pero el flujo de
     productividad_general nunca lo hacía (siempre usaba 30 días).
     """
-    import complementos.presentismo as pres
+    import app_general.complementos.presentismo as pres
 
     nombre = nombre_archivo.lower()
     if any(mes in nombre for mes in pres.meses_31):
@@ -39,7 +38,7 @@ def ajustar_dias_presentismo(nombre_archivo: str) -> int:
 
 
 def ejecutar(entradas: Entradas, log: Logger) -> Resultado:
-    import complementos.presentismo as pres
+    import app_general.complementos.presentismo as pres
 
     ruta = entradas.ruta("presentismo")
     log.titulo("PRESENTISMO")
@@ -56,14 +55,17 @@ def ejecutar(entradas: Entradas, log: Logger) -> Resultado:
         raise RuntimeError(ruta_filtrado)
 
     resumen = pd.read_excel(ruta_resumen)
-    metricas: dict[str, str | int] = {"Personas": len(resumen)}
-    for columna, etiqueta in (
-        ("-LM-", "Lic. médicas"),
-        ("-LLT-", "Llegadas tarde"),
-        ("-AUS-", "Ausentes"),
-    ):
-        if columna in resumen.columns:
-            metricas[etiqueta] = int(pd.to_numeric(resumen[columna], errors="coerce").sum())
+    metricas: dict[str, str | int] = {
+        "Personas únicas": len(resumen),
+        "Personas con lic. médica": int((resumen["-LM-"] > 0).sum()),
+        "Lic. prolongada (todo el mes)": int(resumen["LM TODO EL MES"].sum()),
+        "Personas con llegada tarde": int((resumen["-LLT-"] > 0).sum()),
+        "Llegada tarde todo el mes": int(resumen["LLT TODO EL MES"].sum()),
+        "Personas ausentes": int((resumen["-AUS-"] > 0).sum()),
+        "Ausente todo el mes": int(resumen["AUS TODO EL MES"].sum()),
+        "Personas con licencia anual": int((resumen["-LA-"] > 0).sum()),
+        "Presentes todo el mes": int(resumen["PRESENTE TODO EL MES"].sum()),
+    }
 
     return Resultado(
         mensaje="Presentismo procesado.",
@@ -77,15 +79,18 @@ HERRAMIENTA = Herramienta(
     nombre="Presentismo",
     corto="Presentismo",
     icono="EVENT_AVAILABLE",
-    resumen="Resume licencias médicas, llegadas tarde y ausencias por persona y grupo.",
+    resumen="Cuenta personas únicas con licencias, tardanzas, ausencias y presentismo mensual.",
     pasos=(
         "Detecta cuántos días tiene el mes a partir del nombre del archivo "
         "(ej. 'MAYO' → 31 días, 'FEBRERO' → 28).",
         "Recorre todas las hojas del Excel buscando filas de personal 'contratado' y "
         "'nivel' (AUX.), y detecta el grupo (A-F, ADM) de cada bloque.",
         "Unifica los códigos de cada día (LXUC, LXM, FAC… → LM; SAN, A → AUS).",
-        "Cuenta por persona: -LM-, -LLT-, -AUS- y -LA-.",
-        "Genera el detalle completo y el resumen por persona.",
+        "Consolida personas repetidas por LP/DNI (o nombre si falta el identificador).",
+        "Cuenta personas con licencia médica, llegada tarde, ausencia y licencia anual.",
+        "Identifica licencias médicas prolongadas, tardanzas o ausencias durante todos los días asignados, "
+        "y personas presentes todos los días asignados (P o FA). Los días vacíos no cuentan.",
+        "Genera el detalle completo y un resumen consolidado por persona.",
     ),
     entradas=(
         ArchivoSpec("presentismo", "Excel de presentismo", "Libro con una hoja por turno/grupo"),

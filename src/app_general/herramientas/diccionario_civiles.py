@@ -125,7 +125,7 @@ def ruta_revertido(ruta_proc: Path) -> Path:
 # ─────────────────────────────────────────────────────────────
 def _ubicaciones(col: str, mask: pd.Series) -> list[str]:
     # +2: la fila 1 del Excel son los encabezados y pandas cuenta desde 0.
-    return [f"{col}:fila {int(i) + 2}" for i in mask.index[mask]]
+    return [f"{col}:fila {i + 2}" for i, coincide in enumerate(mask.to_numpy()) if coincide]
 
 
 def aplicar_mapa(
@@ -237,7 +237,11 @@ def _reconciliar(
 def validar_y_reconciliar(entradas: Entradas, log: Logger) -> Resultado:
     log.titulo("DICCIONARIO CIVILES — VALIDAR Y RECONCILIAR")
     ruta_dic = entradas.ruta("diccionario")
-    trabajos = [(c, e, cols, entradas.opcional(c)) for c, e, cols in TRABAJOS if entradas.opcional(c)]
+    trabajos = []
+    for clave, etiqueta, columnas in TRABAJOS:
+        ruta = entradas.opcional(clave)
+        if ruta is not None:
+            trabajos.append((clave, etiqueta, columnas, ruta))
     if not trabajos:
         raise ValueError("Seleccioná al menos un archivo: Fiscalización o Control Diario.")
 
@@ -289,7 +293,13 @@ def _revertir(ruta_proc: Path, columnas: list[str], inverso: dict[str, str], eti
         vacias += int(vacio.sum())
         reemplazados += int(match.sum())
         df.loc[match, col] = valores[match].map(inverso)
-        sin_match += [f"{col}:fila {int(i) + 2} → '{v}'" for i, v in valores[sin].items()]
+        sin_match += [
+            f"{col}:fila {fila} → '{valor}'"
+            for fila, (valor, no_coincide) in enumerate(
+                zip(valores, sin.to_numpy()), start=2
+            )
+            if no_coincide
+        ]
 
     log.info(f"  Reemplazados: {reemplazados} · Vacíos: {vacias}")
     for detalle in sin_match:
@@ -306,7 +316,7 @@ def revertir(entradas: Entradas, log: Logger) -> Resultado:
     ruta_dic = entradas.ruta("diccionario")
 
     with pd.ExcelFile(ruta_dic) as libro:
-        hojas = list(libro.sheet_names)
+        hojas = [str(nombre) for nombre in libro.sheet_names]
     hoja_val = _buscar_hoja(hojas, HOJA_VALIDACION)
     if hoja_val is None:
         raise RuntimeError(f"No hay hoja '{HOJA_VALIDACION}' en el diccionario. Hojas: {hojas}")
