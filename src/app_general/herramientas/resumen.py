@@ -11,7 +11,14 @@ from pathlib import Path
 import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 
-from app_general.nucleo import Accion, ArchivoSpec, Entradas, Herramienta, Logger, Resultado
+from app_general.nucleo import (
+    Accion,
+    ArchivoSpec,
+    Entradas,
+    Herramienta,
+    Logger,
+    Resultado,
+)
 
 COL_TIPIFICACION = "TIPIFICACION"
 COL_DETENIDOS = "DETENIDOS"
@@ -74,7 +81,9 @@ def _cortar_en_primera_fila_vacia(df: pd.DataFrame, log: Logger) -> pd.DataFrame
     if not vacias.any():
         return df
     pos = int(vacias.argmax())
-    log.info(f"Se descartaron {len(df) - pos} filas bajo la primera fila vacía (notas al pie).")
+    log.info(
+        f"Se descartaron {len(df) - pos} filas bajo la primera fila vacía (notas al pie)."
+    )
     return df.iloc[:pos].reset_index(drop=True)
 
 
@@ -114,8 +123,12 @@ def tabla_imputados(df: pd.DataFrame, log: Logger) -> pd.DataFrame | None:
     serie = pd.concat([contravencion, detenidos])
     serie = serie[serie > 0].sort_values(ascending=False, kind="stable")
 
-    tabla = serie.astype(int).rename_axis("TIPO DE EVENTO").reset_index(name="IMPUTADOS")
-    total = pd.DataFrame({"TIPO DE EVENTO": ["Total general"], "IMPUTADOS": [int(serie.sum())]})
+    tabla = (
+        serie.astype(int).rename_axis("TIPO DE EVENTO").reset_index(name="IMPUTADOS")
+    )
+    total = pd.DataFrame(
+        {"TIPO DE EVENTO": ["Total general"], "IMPUTADOS": [int(serie.sum())]}
+    )
     return pd.concat([tabla, total], ignore_index=True)
 
 
@@ -141,13 +154,15 @@ def ejecutar(entradas: Entradas, log: Logger) -> Resultado:
         .str.lower()
         .str.match(PATRON_COLABORACION)
     )
-    tiene_pc = df[COL_PC].notna() & (df[COL_PC].astype(str).str.strip() != "")
+    pc = df[COL_PC].fillna("").astype(str).str.strip()
+    tiene_pc = pc.ne("") & pc.ne("-")
 
     total_eventos = len(df)
     detenidos_totales = int(df[COL_CONTRAVENTORES].sum() + df[COL_DETENIDOS].sum())
-    colaboraciones = int(es_colab.sum())
+    colaboraciones = int(es_colab.sum() & tiene_pc.sum())
     detenidos_colab = int(
-        df.loc[es_colab, COL_CONTRAVENTORES].sum() + df.loc[es_colab, COL_DETENIDOS].sum()
+        df.loc[es_colab, COL_CONTRAVENTORES].sum()
+        + df.loc[es_colab, COL_DETENIDOS].sum()
     )
     detenidos_propios = detenidos_totales - detenidos_colab
     intervenciones = int(((~es_colab) & tiene_pc).sum())
@@ -159,7 +174,7 @@ def ejecutar(entradas: Entradas, log: Logger) -> Resultado:
     log.info(f"Detenidos en colaboración: {detenidos_colab}")
     log.info(f"Detenidos propios: {detenidos_propios}")
     log.info(f"Total de eventos: {total_eventos}")
-    log.info(f"Eventos sin presencia policial ni colaboración: {sin_presencia}")
+    log.info(f"Eventos sin presencia: {sin_presencia}")
 
     tablas: dict[str, pd.DataFrame] = {}
     tabla = tabla_imputados(df, log)
@@ -170,16 +185,21 @@ def ejecutar(entradas: Entradas, log: Logger) -> Resultado:
         for linea in tabla.to_string(index=False).splitlines():
             log.info(linea)
 
+    if colaboraciones != tiene_pc.sum():
+        log.aviso("⚠ Existen eventos de 'Colaboración' sin 'PC'")
+
     return Resultado(
         mensaje="Resumen calculado.",
         metricas={
             "Total de eventos": total_eventos,
             "Intervenciones": intervenciones,
             "Colaboraciones": colaboraciones,
+            "Sin presencia": sin_presencia,
+            "Si coincide eventos": total_eventos
+            == (intervenciones + colaboraciones + sin_presencia),
             "Detenidos totales": detenidos_totales,
             "Detenidos en colaboración": detenidos_colab,
             "Detenidos propios": detenidos_propios,
-            "Sin presencia": sin_presencia,
         },
         tablas=tablas,
     )
@@ -217,11 +237,16 @@ def exportar_excel(entradas: Entradas, log: Logger) -> Resultado:
 
     hojas = {
         "Resumen": pd.DataFrame(
-            {"INDICADOR": list(resultado.metricas), "VALOR": list(resultado.metricas.values())}
+            {
+                "INDICADOR": list(resultado.metricas),
+                "VALOR": list(resultado.metricas.values()),
+            }
         )
     }
     for titulo, tabla in resultado.tablas.items():
-        hojas["Imputados"] = tabla  # hay una sola tabla; si hubiera más, un nombre por tabla
+        hojas["Imputados"] = (
+            tabla  # hay una sola tabla; si hubiera más, un nombre por tabla
+        )
 
     log.titulo("EXPORTANDO A EXCEL")
     try:
