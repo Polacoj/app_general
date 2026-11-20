@@ -154,8 +154,10 @@ def ejecutar(entradas: Entradas, log: Logger) -> Resultado:
         .str.lower()
         .str.match(PATRON_COLABORACION)
     )
-    pc = df[COL_PC].fillna("").astype(str).str.strip()
-    tiene_pc = pc.ne("") & pc.ne("-")
+    tiene_pc = df[COL_PC].map(
+        lambda valor: pd.notna(valor)
+        and (not isinstance(valor, str) or valor.strip() not in ("", "-"))
+    )
 
     total_eventos = len(df)
     detenidos_totales = int(df[COL_CONTRAVENTORES].sum() + df[COL_DETENIDOS].sum())
@@ -187,7 +189,7 @@ def ejecutar(entradas: Entradas, log: Logger) -> Resultado:
 
     if colaboraciones != tiene_pc.sum():
         log.aviso("⚠ Existen eventos de 'Colaboración' sin 'PC'")
-
+    
     return Resultado(
         mensaje="Resumen calculado.",
         metricas={
